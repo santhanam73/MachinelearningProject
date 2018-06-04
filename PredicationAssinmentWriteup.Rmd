@@ -2,12 +2,11 @@
 title: "Prediction Assignment Writeup-Santhanam"
 author: "Santhanam"
 date: "June 1, 2018"
-output: html_document
+output: 
+  html_document:
+    keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 # Background
 
