@@ -1,0 +1,153 @@
+---
+title: "Prediction Assignment Writeup-Santhanam"
+author: "Santhanam"
+date: "June 1, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Loading Data and performing exploratory analysis
+
+## Data 
+
+### The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+### The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+#Load the libraries
+
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(gbm)
+library(plyr)
+
+trainingdatafile <- "C:\\santhanam\\DatascienceToolkit\\sanrepository\\MachinelearningProject\\pml-training.csv"
+ 
+ if (!file.exists(trainingdatafile))
+{
+  trainingdataurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  download.file(url = trainingdataurl, destfile = trainingdatafile)
+}
+
+
+## load the training data
+trainingdataset <- read.csv(trainingdatafile,na.strings=c("NA","#DIV/0!",""))
+
+##download test data
+
+testdatafile <- "C:\\santhanam\\DatascienceToolkit\\sanrepository\\MachinelearningProject\\pml-testing.csv"
+ 
+ if (!file.exists(testdatafile))
+{
+  testingdataurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  download.file(url = testingdataurl, destfile = testdatafile)
+}
+
+## load the testing data set
+testingdataset <- read.csv(testdatafile,na.strings=c("NA","#DIV/0!",""))
+
+##Data clean up
+
+### Remove all columns that contain NA, remove Attributes that are not in the testing dataset.
+### Also remove frst 7 Attributes that are not numeric
+
+attributesdata <- names(testingdataset[,colSums(is.na(testingdataset)) == 0])[8:59]
+
+# Only use attributes used in testing cases.
+trainingdataset <- trainingdataset[,c(attributesdata,"classe")]
+testingdataset <- testingdataset[,c(attributesdata,"problem_id")]
+
+
+
+dim(trainingdataset); 
+
+dim(testingdataset);
+
+## After cleaning, we can see that the number of vairables for the analysis are now only 53
+
+
+## Perform Dataset partition
+
+
+datapartitionTrain <- createDataPartition(trainingdataset$classe, p=0.7, list=FALSE)
+trainingdataPartioned <- trainingdataset[datapartitionTrain,]
+testingdatapartioned <- trainingdataset[-datapartitionTrain,]
+
+dim(trainingdataPartioned); dim(testingdatapartioned);
+
+
+
+
+#Perform Prediction Modeling Using Decision Tree Model
+
+
+##The expectation of accuracy is not high,expectation is around 70 to 80%
+set.seed(501)
+decisiontreemodelData <- rpart(classe ~ ., data = trainingdataPartioned, method="class", control = rpart.control(method = "cv", number = 5))
+fancyRpartPlot(decisiontreemodelData)
+
+
+#Predict with Decision Tree Model
+set.seed(501)
+
+dtPrediction <- predict(decisiontreemodelData, testingdatapartioned, type = "class")
+confusionMatrix(dtPrediction, testingdatapartioned$classe)
+
+
+#Building Random Forest Model, the expectation is that the accuracy will be very high close to 99%
+
+set.seed(501)
+foresttreeModel <- randomForest(classe ~ ., data = trainingdataPartioned, method = "rf", importance = T, trControl = trainControl(method = "cv", classProbs=TRUE,savePredictions=TRUE,allowParallel=TRUE, number = 5))
+
+plot(foresttreeModel)
+
+#Predicting with Forest Tree model
+
+forestreeprediction <- predict(foresttreeModel, testingdatapartioned, type = "class")
+confusionMatrix(forestreeprediction, testingdatapartioned$classe)
+
+### As the results indicate forest tree model had an accuracy of 99.5% with sample test date
+
+#Building Generalized Boosted Model(GBM)
+
+set.seed(123)
+trcontrolgbm <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+gbmModel  <- train(classe ~ ., data=trainingdataPartioned, method = "gbm",
+                    trControl = trcontrolgbm, verbose = F)
+gbmModel
+
+
+#Prediction based on GBM on the partion test data set
+
+
+predictwithgbm<- predict(gbmModel,testingdatapartioned)
+confgbmmatrix <- confusionMatrix(predictwithgbm, testingdatapartioned$classe)
+
+plot(confgbmmatrix$table, col = confgbmmatrix$byClass, 
+     main = paste("Accuracy -GBM Model =", round(confgbmmatrix$overall['Accuracy'], 4)))
+
+
+#The Forest Model prediction on the sample data set showed highest accouracy.
+##Applying that model to answer the quiz questions by applying it on the full testdata set
+
+foresttreepredictionfinal <- predict(foresttreeModel, testingdataset)
+foresttreepredictionfinal
+
+```
